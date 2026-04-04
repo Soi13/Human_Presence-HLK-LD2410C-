@@ -4,7 +4,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#define UART_PORT UART_NUM_2
+#define UART_PORT UART_NUM_1
 #define RX 16
 #define TX 17
 #define BUF_SIZE 256
@@ -21,11 +21,12 @@ void uart_init_ld2410()
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
     };
 
-    uart_driver_install(UART_PORT, BUF_SIZE * 2, 0, 0, NULL, 0);
+    uart_driver_install(UART_PORT, BUF_SIZE * 8, 0, 0, NULL, 0);
     uart_param_config(UART_PORT, &uart_config);
     uart_set_pin(UART_PORT, TX, RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 }
 
+/*
 void parse_ld2410(uint8_t *data, int len)
 {
     for (int i = 0; i < len - 8; i++) {
@@ -58,11 +59,27 @@ void ld2410_task(void *arg)
         }
     }
 }
-
+*/
 
 void app_main(void)
 {
     uart_init_ld2410();
-    xTaskCreate(ld2410_task, "ld2410_task", 4096, NULL, 5, NULL);
+    //xTaskCreate(ld2410_task, "ld2410_task", 4096, NULL, 5, NULL);
     ESP_LOGI(TAG, "LD2410 task started");
+
+    uint8_t data[128];
+
+    //while (1) {
+        int len = uart_read_bytes(UART_PORT, data, sizeof(data), pdMS_TO_TICKS(100));
+
+        if (len > 0) {
+            for (int i = 0; i < len; i++) {
+                printf("%02X ", data[i]);
+            }
+            printf("\n");
+            //printf("\n");
+        }
+        //vTaskDelay(pdMS_TO_TICKS(1000));
+        
+    //}
 }
