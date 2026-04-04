@@ -3,7 +3,7 @@
   "idf.openOcdConfigs": [
     "board/esp32-wrover-kit-3.3v.cfg"
   ],
-  "idf.port": "detect",
+  "idf.port": "/dev/ttyUSB0",
   "idf.currentSetup": "/home/oleg/esp/esp-idf",
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32"
@@ -13,5 +13,6 @@
     "--background-index",
     "--query-driver=**",
     "--compile-commands-dir=/home/oleg/Documents/Esp32_projects/human_presence/build"
-  ]
+  ],
+  "idf.flashType": "UART"
 }
