@@ -44,7 +44,7 @@ void parse_ld2410(uint8_t *data, int len)
             } else if (target_status == 0x02) {
                 ESP_LOGI("LD2410", "Static target detected. Distance cm: %d", static_distance);
             } else {
-                ESP_LOGI("LD2410", "No target");
+                ESP_LOGW("LD2410", "No target");
             }
         }
     }
@@ -68,20 +68,5 @@ void app_main(void)
     uart_init_ld2410();
     xTaskCreate(ld2410_task, "ld2410_task", 4096, NULL, 5, NULL);
     ESP_LOGI(TAG, "LD2410 task started");
-
-    /*uint8_t data[128];
-
-    //while (1) {
-        int len = uart_read_bytes(UART_PORT, data, sizeof(data), pdMS_TO_TICKS(100));
-
-        if (len > 0) {
-            for (int i = 0; i < len; i++) {
-                printf("%02X ", data[i]);
-            }
-            printf("\n");
-            //printf("\n");
-        }
-        //vTaskDelay(pdMS_TO_TICKS(1000));
-        
-    //}*/
+    //vTaskDelay(pdMS_TO_TICKS(1000));
 }
