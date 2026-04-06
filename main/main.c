@@ -13,6 +13,16 @@
 
 /////////##Configuration section##//////////////
 
+//Sending request
+void ld2410_send(uint8_t *cmd, size_t len) {
+    uart_write_bytes(UART_NUM_1, (const char*)cmd, len);
+}
+
+//Reading response
+int ld2410_read(uint8_t *buf, size_t max_len) {
+    return uart_read_bytes(UART_NUM_1, buf, max_len, pdMS_TO_TICKS(200));
+}
+
 //Enter in configuration mode
 uint8_t enter_config[] = {
     0xFD, 0xFC, 0xFB, 0xFA,
@@ -52,14 +62,70 @@ uint8_t read_all[] = {
     0x04, 0x03, 0x02, 0x01
 };
 
-//Sending request
-void ld2410_send(uint8_t *cmd, size_t len) {
-    uart_write_bytes(UART_NUM_1, (const char*)cmd, len);
+//Set max detection distance. Command: 0x60
+void set_max_distance(uint16_t cm) {
+    uint8_t cmd[] = {
+        0xFD,0xFC,0xFB,0xFA,
+        0x06,0x00,
+        0x60,
+        (uint8_t)(cm & 0xFF),
+        (uint8_t)(cm >> 8),
+        0x00,
+        0x00,
+        0x04,0x03,0x02,0x01
+    };
+
+    ld2410_send((char*)cmd, sizeof(cmd));
 }
 
-//Reading response
-int ld2410_read(uint8_t *buf, size_t max_len) {
-    return uart_read_bytes(UART_NUM_1, buf, max_len, pdMS_TO_TICKS(200));
+//Set gate sensetivity. Command: 0x64
+void set_gate(uint8_t gate, uint8_t moving, uint8_t stat) {
+    uint8_t cmd[] = {
+        0xFD,0xFC,0xFB,0xFA,
+        0x07,0x00,
+        0x64,
+        gate,
+        moving,
+        stat,
+        0x00,
+        0x00,
+        0x04,0x03,0x02,0x01
+    };
+
+    ld2410_send((char*)cmd, sizeof(cmd));
+}
+
+//Set all gates at once
+void configure_all_gates() {
+    // Near field → high sensitivity
+    ld2410_set_gate(0, 100, 100);
+    ld2410_set_gate(1, 90, 90);
+    ld2410_set_gate(2, 80, 80);
+
+    // Mid range
+    ld2410_set_gate(3, 60, 60);
+    ld2410_set_gate(4, 50, 50);
+
+    // Far range → suppress noise
+    ld2410_set_gate(5, 30, 30);
+    ld2410_set_gate(6, 10, 10);
+    ld2410_set_gate(7, 0, 0);
+}
+
+//Set minimum distance (ignore very close noise)
+void set_min_distance(uint16_t cm) {
+    uint8_t cmd[] = {
+        0xFD,0xFC,0xFB,0xFA,
+        0x06,0x00,
+        0x62,
+        (uint8_t)(cm & 0xFF),
+        (uint8_t)(cm >> 8),
+        0x00,
+        0x00,
+        0x04,0x03,0x02,0x01
+    };
+
+    ld2410_send((char*)cmd, sizeof(cmd));
 }
 
 //Read config main method
