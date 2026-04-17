@@ -3,8 +3,9 @@
 #include "driver/uart.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_timer.h"
 
-#define UART_PORT UART_NUM_1
+#define UART_PORT UART_NUM_2
 #define RX 16
 #define TX 17
 #define BUF_SIZE 256
@@ -15,12 +16,12 @@
 
 //Sending request
 void ld2410_send(uint8_t *cmd, size_t len) {
-    uart_write_bytes(UART_NUM_1, (const char*)cmd, len);
+    uart_write_bytes(UART_NUM_2, (const char*)cmd, len);
 }
 
 //Reading response
 int ld2410_read(uint8_t *buf, size_t max_len) {
-    return uart_read_bytes(UART_NUM_1, buf, max_len, pdMS_TO_TICKS(200));
+    return uart_read_bytes(UART_NUM_2, buf, max_len, pdMS_TO_TICKS(200));
 }
 
 //Enter in configuration mode
@@ -128,13 +129,20 @@ void ld2410_start_config() {
 
     uint8_t rx[256];
 
+    uart_flush(UART_PORT);
+
     //Enter config mode
     ld2410_send(enter_config, sizeof(enter_config));
-    vTaskDelay(pdMS_TO_TICKS(500));
+    //ld2410_send(read_all, sizeof(read_all));
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     //Enable engineering mode
-    ld2410_send(enable_engineering_mode, sizeof(enable_engineering_mode));
-    vTaskDelay(pdMS_TO_TICKS(500));
+    //ld2410_send(enable_engineering_mode, sizeof(enable_engineering_mode));
+    //vTaskDelay(pdMS_TO_TICKS(200));
+
+    //Disable engineering mode
+    ld2410_send(disable_engineering_mode, sizeof(disable_engineering_mode));
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     int len = ld2410_read(rx, sizeof(rx));
 
@@ -149,6 +157,7 @@ void ld2410_start_config() {
 
     //Exit config mode
     ld2410_send(exit_config, sizeof(exit_config));
+    vTaskDelay(pdMS_TO_TICKS(200));
 }
 
 ////////##End of configuration section##////////
@@ -208,8 +217,8 @@ void ld2410_task(void *arg)
 void app_main(void)
 {
     uart_init_ld2410();
-    ld2410_start_config();
-    //xTaskCreate(ld2410_task, "ld2410_task", 4096, NULL, 5, NULL);
+    //ld2410_start_config();
+    xTaskCreate(ld2410_task, "ld2410_task", 4096, NULL, 5, NULL);
     ESP_LOGI(TAG, "LD2410 task started");
     //vTaskDelay(pdMS_TO_TICKS(1000));
 }
