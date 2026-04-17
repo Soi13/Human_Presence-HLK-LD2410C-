@@ -1,18 +1,32 @@
 #include <stdio.h>
 #include <esp_log.h>
-#include "driver/uart.h"
+#include "esp_system.h"
+#include "esp_wifi.h"
+#include "esp_event.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "esp_timer.h"
+#include "mqtt_client.h"
+#include "driver/uart.h"
 
 #define UART_PORT UART_NUM_2
 #define RX 16
 #define TX 17
 #define BUF_SIZE 256
 
-#define TAG "LD2410"
+#define WIFI_SSID "Soi13"
+#define WIFI_PASS ""
 
-/////////##Configuration section##//////////////
+// MQTT Server/Broker credentials
+#define MQTT_BROKER_URI "mqtt://192.168.1.64"
+#define MQTT_USER "mqtt_user"
+#define MQTT_PASSWORD ""
+#define PRESENCE_IN_LIVING_ROOM "homeassistant/sensor/presence_in_living_room"
+#define PRESENCE_IN_LIVING_DISTANCE "homeassistant/sensor/presence_in_living_room_distance"
+
+
+static const char *TAG = "LD2410";
+
+/////////##Configuration section for LD2410C sensor##//////////////
 
 //Sending request
 void ld2410_send(uint8_t *cmd, size_t len) {
@@ -110,21 +124,22 @@ void set_gate(uint8_t gate, uint8_t moving, uint8_t stat) {
 //Set all gates at once
 void configure_all_gates() {
     // Near field → high sensitivity
-    set_gate(0, 100, 100);
-    set_gate(1, 90, 90);
-    set_gate(2, 80, 80);
+    set_gate(0, 50, 100);
+    set_gate(1, 50, 100);
+    set_gate(2, 40, 40);
 
     // Mid range
-    set_gate(3, 60, 60);
-    set_gate(4, 50, 50);
+    set_gate(3, 30, 40);
+    set_gate(4, 20, 30);
 
     // Far range → suppress noise
-    set_gate(5, 30, 30);
-    set_gate(6, 10, 10);
-    set_gate(7, 0, 0);
+    set_gate(5, 15, 30);
+    set_gate(6, 15, 20);
+    set_gate(7, 15, 20);
+    set_gate(8, 15, 20);
 }
 
-//Read config main method
+//Start config main method
 void ld2410_start_config() {
 
     uint8_t rx[256];
@@ -133,7 +148,10 @@ void ld2410_start_config() {
 
     //Enter config mode
     ld2410_send(enter_config, sizeof(enter_config));
+    vTaskDelay(pdMS_TO_TICKS(200));
+
     //ld2410_send(read_all, sizeof(read_all));
+    configure_all_gates();
     vTaskDelay(pdMS_TO_TICKS(200));
 
     //Enable engineering mode
@@ -141,9 +159,10 @@ void ld2410_start_config() {
     //vTaskDelay(pdMS_TO_TICKS(200));
 
     //Disable engineering mode
-    ld2410_send(disable_engineering_mode, sizeof(disable_engineering_mode));
-    vTaskDelay(pdMS_TO_TICKS(200));
+    //ld2410_send(disable_engineering_mode, sizeof(disable_engineering_mode));
+    //vTaskDelay(pdMS_TO_TICKS(200));
 
+    //Check response after executing configuration comand
     int len = ld2410_read(rx, sizeof(rx));
 
     if (len > 0) {
@@ -160,7 +179,65 @@ void ld2410_start_config() {
     vTaskDelay(pdMS_TO_TICKS(200));
 }
 
-////////##End of configuration section##////////
+////////##End of configuration section for LD2410C sensor##////////
+
+// Wifi event handler for displaying parameters of connection
+static void event_handler(void* arg, esp_event_base_t event_base,
+                          int32_t event_id, void* event_data)
+{
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+        esp_wifi_connect();
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        ESP_LOGW(TAG, "Wi-Fi disconnected, retrying...");
+        esp_wifi_connect();
+    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+        ESP_LOGI(TAG, "Wi-Fi connected");
+        ESP_LOGI(TAG, "IP Address: " IPSTR, IP2STR(&event->ip_info.ip));
+        ESP_LOGI(TAG, "Subnet Mask: " IPSTR, IP2STR(&event->ip_info.netmask));
+        ESP_LOGI(TAG, "Gateway: " IPSTR, IP2STR(&event->ip_info.gw));
+    }
+}
+
+// Initializing Wifi connection
+static void wifi_init(void)
+{
+    esp_netif_init();
+    esp_event_loop_create_default();
+    esp_netif_create_default_wifi_sta();
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    esp_wifi_init(&cfg);
+
+    esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL);
+    esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL);
+
+    wifi_config_t wifi_config = {
+        .sta = {
+            .ssid = WIFI_SSID,
+            .password = WIFI_PASS,
+            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+        },
+    };
+
+    esp_wifi_set_mode(WIFI_MODE_STA);
+    esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+    esp_wifi_start();
+}
+
+static esp_mqtt_client_handle_t client = NULL;
+
+static void mqtt_app(void)
+{
+    esp_mqtt_client_config_t mqtt_cfg = {
+        .broker.address.uri = MQTT_BROKER_URI,
+        .credentials.username = MQTT_USER,
+        .credentials.authentication.password = MQTT_PASSWORD,
+    };
+
+    client = esp_mqtt_client_init(&mqtt_cfg);
+    esp_mqtt_client_start(client);
+}
 
 void uart_init_ld2410()
 {
@@ -172,9 +249,9 @@ void uart_init_ld2410()
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
     };
 
-    uart_driver_install(UART_PORT, BUF_SIZE * 8, 0, 0, NULL, 0);
-    uart_param_config(UART_PORT, &uart_config);
-    uart_set_pin(UART_PORT, TX, RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    ESP_ERROR_CHECK(uart_driver_install(UART_PORT, BUF_SIZE * 8, 0, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_param_config(UART_PORT, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(UART_PORT, TX, RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 }
 
 
@@ -220,5 +297,4 @@ void app_main(void)
     //ld2410_start_config();
     xTaskCreate(ld2410_task, "ld2410_task", 4096, NULL, 5, NULL);
     ESP_LOGI(TAG, "LD2410 task started");
-    //vTaskDelay(pdMS_TO_TICKS(1000));
 }
