@@ -1,12 +1,10 @@
 #include <stdio.h>
-#include <esp_log.h>
-#include "esp_system.h"
-#include "esp_wifi.h"
-#include "esp_event.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "mqtt_client.h"
 #include "driver/uart.h"
+#include "esp_wifi.h"
+#include <esp_log.h>
+#include "nvs_flash.h"
 
 #define UART_PORT UART_NUM_2
 #define RX 16
@@ -15,14 +13,6 @@
 
 #define WIFI_SSID "Soi13"
 #define WIFI_PASS ""
-
-// MQTT Server/Broker credentials
-#define MQTT_BROKER_URI "mqtt://192.168.1.64"
-#define MQTT_USER "mqtt_user"
-#define MQTT_PASSWORD ""
-#define PRESENCE_IN_LIVING_ROOM "homeassistant/sensor/presence_in_living_room"
-#define PRESENCE_IN_LIVING_DISTANCE "homeassistant/sensor/presence_in_living_room_distance"
-
 
 static const char *TAG = "LD2410";
 
@@ -225,20 +215,6 @@ static void wifi_init(void)
     esp_wifi_start();
 }
 
-static esp_mqtt_client_handle_t client = NULL;
-
-static void mqtt_app(void)
-{
-    esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = MQTT_BROKER_URI,
-        .credentials.username = MQTT_USER,
-        .credentials.authentication.password = MQTT_PASSWORD,
-    };
-
-    client = esp_mqtt_client_init(&mqtt_cfg);
-    esp_mqtt_client_start(client);
-}
-
 void uart_init_ld2410()
 {
     uart_config_t uart_config = {
@@ -293,8 +269,11 @@ void ld2410_task(void *arg)
 
 void app_main(void)
 {
-    uart_init_ld2410();
+    ESP_ERROR_CHECK(nvs_flash_init());
+    wifi_init();
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    //uart_init_ld2410();
     //ld2410_start_config();
-    xTaskCreate(ld2410_task, "ld2410_task", 4096, NULL, 5, NULL);
+    //xTaskCreate(ld2410_task, "ld2410_task", 4096, NULL, 5, NULL);
     ESP_LOGI(TAG, "LD2410 task started");
 }
