@@ -5,16 +5,28 @@
 #include "esp_wifi.h"
 #include <esp_log.h>
 #include "nvs_flash.h"
+#include "driver/gpio.h"
+#include "mqtt_client.h"
 
 #define UART_PORT UART_NUM_2
 #define RX 16
 #define TX 17
 #define BUF_SIZE 256
+#define OUT_PIN GPIO_NUM_4
 
 #define WIFI_SSID "Soi13"
 #define WIFI_PASS ""
 
+// MQTT Server/Broker credentials
+#define MQTT_BROKER_URI "mqtt://192.168.1.64"
+#define MQTT_USER "mqtt_user"
+#define MQTT_PASSWORD ""
+#define PRESENCE "homeassistant/sensor/presence"
+#define PRESENCE_TYPE_DISTANCE "homeassistant/sensor/presence_type_distance"
+
 static const char *TAG = "LD2410";
+
+
 
 /////////##Configuration section for LD2410C sensor##//////////////
 
@@ -171,6 +183,17 @@ void ld2410_start_config() {
 
 ////////##End of configuration section for LD2410C sensor##////////
 
+
+
+//Configuration of GPIO for using OUT Pin on LD2410C
+gpio_config_t io_conf = {
+    .pin_bit_mask = (1ULL << OUT_PIN),
+    .mode = GPIO_MODE_INPUT,
+    .pull_up_en = GPIO_PULLUP_DISABLE,
+    .pull_down_en = GPIO_PULLDOWN_DISABLE,
+    .intr_type = GPIO_INTR_DISABLE
+};
+
 // Wifi event handler for displaying parameters of connection
 static void event_handler(void* arg, esp_event_base_t event_base,
                           int32_t event_id, void* event_data)
@@ -213,6 +236,20 @@ static void wifi_init(void)
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
     esp_wifi_start();
+}
+
+static esp_mqtt_client_handle_t client = NULL;
+
+static void mqtt_app(void)
+{
+    esp_mqtt_client_config_t mqtt_cfg = {
+        .broker.address.uri = MQTT_BROKER_URI,
+        .credentials.username = MQTT_USER,
+        .credentials.authentication.password = MQTT_PASSWORD,
+    };
+
+    client = esp_mqtt_client_init(&mqtt_cfg);
+    esp_mqtt_client_start(client);
 }
 
 void uart_init_ld2410()
@@ -260,20 +297,28 @@ void ld2410_task(void *arg)
 
     while (1) {
         int len = uart_read_bytes(UART_PORT, data, BUF_SIZE, pdMS_TO_TICKS(100));
+        int state = gpio_get_level(OUT_PIN);
 
         if (len > 0) {
             parse_ld2410(data, len);
+        }
+
+        if (state) {
+            printf("Presence detected\n");
+        } else {
+            printf("No presence\n");
         }
     }
 }
 
 void app_main(void)
 {
+    gpio_config(&io_conf);
     ESP_ERROR_CHECK(nvs_flash_init());
     wifi_init();
     vTaskDelay(pdMS_TO_TICKS(5000));
-    //uart_init_ld2410();
+    uart_init_ld2410();
     //ld2410_start_config();
-    //xTaskCreate(ld2410_task, "ld2410_task", 4096, NULL, 5, NULL);
+    xTaskCreate(ld2410_task, "ld2410_task", 4096, NULL, 5, NULL);
     ESP_LOGI(TAG, "LD2410 task started");
 }
