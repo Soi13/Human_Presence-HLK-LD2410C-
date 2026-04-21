@@ -22,7 +22,8 @@
 #define MQTT_USER "mqtt_user"
 #define MQTT_PASSWORD ""
 #define PRESENCE "homeassistant/sensor/presence"
-#define PRESENCE_TYPE_DISTANCE "homeassistant/sensor/presence_type_distance"
+#define PRESENCE_TYPE_STATIC "homeassistant/sensor/presence_static_target"
+#define PRESENCE_TYPE_MOVING "homeassistant/sensor/presence_moving_target"
 
 static const char *TAG = "LD2410";
 
@@ -270,6 +271,8 @@ void uart_init_ld2410()
 
 void parse_ld2410(uint8_t *data, int len)
 {
+    char moving_dist[6], static_dist[6];
+
     for (int i = 0; i < len - 8; i++) {
         if (data[i] == 0xF4 && data[i+1] == 0xF3 &&
             data[i+2] == 0xF2 && data[i+3] == 0xF1) {
@@ -281,9 +284,13 @@ void parse_ld2410(uint8_t *data, int len)
             uint16_t static_distance = data[12] | (data[13] << 8);
 
             if (target_status == 0x03) {
+                snprintf(moving_dist, sizeof(moving_dist), "%u", moving_distance);
                 ESP_LOGI(TAG, "Moving target detected. Distance cm: %d", moving_distance);
+                esp_mqtt_client_publish(client, PRESENCE_TYPE_MOVING, moving_dist, 0, 1, 0);
             } else if (target_status == 0x02) {
+                snprintf(static_dist, sizeof(static_dist), "%u", static_distance);
                 ESP_LOGI(TAG, "Static target detected. Distance cm: %d", static_distance);
+                esp_mqtt_client_publish(client, PRESENCE_TYPE_STATIC, static_dist, 0, 1, 0);
             } else {
                 ESP_LOGW(TAG, "No target");
             }
@@ -305,8 +312,10 @@ void ld2410_task(void *arg)
 
         if (state) {
             printf("Presence detected\n");
+            esp_mqtt_client_publish(client, PRESENCE, "Presence detected", 0, 1, 0);
         } else {
             printf("No presence\n");
+            esp_mqtt_client_publish(client, PRESENCE, "No presence", 0, 1, 0);
         }
     }
 }
@@ -317,6 +326,8 @@ void app_main(void)
     ESP_ERROR_CHECK(nvs_flash_init());
     wifi_init();
     vTaskDelay(pdMS_TO_TICKS(5000));
+    mqtt_app();
+    vTaskDelay(pdMS_TO_TICKS(1000));
     uart_init_ld2410();
     //ld2410_start_config();
     xTaskCreate(ld2410_task, "ld2410_task", 4096, NULL, 5, NULL);
