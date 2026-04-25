@@ -89,6 +89,9 @@ Jumper wires
 </table>
 <br/>
 <b>Diagram:</b>
+<br/><br/>
+
+![Picture of schema](LD210C-ESP32-Circuit.jpg)
 
             +----------------------+
           |     LD2410C          |
