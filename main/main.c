@@ -293,6 +293,8 @@ void parse_ld2410(uint8_t *data, int len)
                 esp_mqtt_client_publish(client, PRESENCE_TYPE_STATIC, static_dist, 0, 1, 0);
             } else {
                 ESP_LOGW(TAG, "No target");
+                esp_mqtt_client_publish(client, PRESENCE_TYPE_MOVING, "0", 0, 1, 0);
+                esp_mqtt_client_publish(client, PRESENCE_TYPE_STATIC, "0", 0, 1, 0);
             }
         }
     }
