@@ -157,3 +157,176 @@ The sensor provides:
 <li>Ensure correct baud rate (256000)</li>
 <li>Avoid blocking operations in firmware (important for MQTT stability)</li>
 </ul>
+<br/>
+<h3>📦Configuration examples:</h3>
+
+```c++
+/////////##Configuration section for LD2410C sensor##//////////////
+
+//Sending request
+void ld2410_send(uint8_t *cmd, size_t len) {
+    uart_write_bytes(UART_NUM_2, (const char*)cmd, len);
+}
+
+//Reading response
+int ld2410_read(uint8_t *buf, size_t max_len) {
+    return uart_read_bytes(UART_NUM_2, buf, max_len, pdMS_TO_TICKS(200));
+}
+
+//Enter in configuration mode
+uint8_t enter_config[] = {
+    0xFD, 0xFC, 0xFB, 0xFA,
+    0x04, 0x00,
+    0xFF, 0x00,
+    0x01, 0x00,
+    0x04, 0x03, 0x02, 0x01
+};
+
+//Exit from configuration mode
+uint8_t exit_config[] = {
+    0xFD, 0xFC, 0xFB, 0xFA,
+    0x02, 0x00,
+    0xFE, 0x00,
+    0x04, 0x03, 0x02, 0x01
+};
+
+//Read firmware version. Command: 0xA0
+uint8_t read_version[] = {
+    0xFD, 0xFC, 0xFB, 0xFA,
+    0x02, 0x00,
+    0xA0, 0x00,
+    0x04, 0x03, 0x02, 0x01
+};
+
+//Read all parameters. Command: 0x61
+//This returns: max distance, gate sensitivities, thresholds
+uint8_t read_all[] = {
+    0xFD, 0xFC, 0xFB, 0xFA,
+    0x02, 0x00,
+    0x61, 0x00,
+    0x04, 0x03, 0x02, 0x01
+};
+
+//Enabling engineering mode. Command: 0x62
+uint8_t enable_engineering_mode[] = {
+    0xFD, 0xFC, 0xFB, 0xFA,
+    0x02, 0x00,
+    0x62, 0x00,
+    0x04, 0x03, 0x02, 0x01
+};
+
+//Disabling engineering mode. Command: 0x63
+uint8_t disable_engineering_mode[] = {
+    0xFD, 0xFC, 0xFB, 0xFA,
+    0x02, 0x00,
+    0x63, 0x00,
+    0x04, 0x03, 0x02, 0x01
+};
+
+//Set max detection distance. Command: 0x60
+//We set here maximum distance gate 8 (stationary and motion). No one duration is 5 sec.
+uint8_t max_distance_gate[] = {
+    0xFD, 0xFC, 0xFB, 0xFA,
+    0x14, 0x00,
+    0x60, 0x00,
+    0x00, 0x00,
+    0x08, 0x00, 0x00, 0x00,
+    0x01, 0x00,
+    0x08, 0x00, 0x00, 0x00,
+    0x02, 0x00,
+    0x05, 0x00, 0x00, 0x00,
+    0x04, 0x03, 0x02, 0x01
+};
+
+//Set gate sensetivity. Command: 0x64
+void set_gate(uint8_t gate, uint8_t moving, uint8_t stat) {
+    uint8_t cmd[] = {
+        0xFD, 0xFC, 0xFB, 0xFA,
+        0x14, 0x00,
+        0x64, 0x00,
+        0x00, 0x00,
+        gate, 0x00, 0x00, 0x00,
+        0x01, 0x00,
+        moving, 0x00, 0x00, 0x00,
+        0x02, 0x00,
+        stat, 0x00, 0x00, 0x00,
+        0x04, 0x03, 0x02, 0x01
+    };
+
+    ld2410_send(cmd, sizeof(cmd));
+}
+
+//Set all gates at once
+void configure_all_gates() {
+    // Near field → high sensitivity
+    set_gate(0, 50, 100);
+    set_gate(1, 50, 100);
+    set_gate(2, 40, 40);
+
+    // Mid range
+    set_gate(3, 30, 40);
+    set_gate(4, 20, 30);
+
+    // Far range → suppress noise
+    set_gate(5, 15, 30);
+    set_gate(6, 15, 20);
+    set_gate(7, 15, 20);
+    set_gate(8, 15, 20);
+}
+
+//Start config main method
+void ld2410_start_config() {
+
+    uint8_t rx[256];
+
+    uart_flush(UART_PORT);
+
+    //Enter config mode
+    ld2410_send(enter_config, sizeof(enter_config));
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    //ld2410_send(read_all, sizeof(read_all));
+    configure_all_gates();
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    //Enable engineering mode
+    ld2410_send(enable_engineering_mode, sizeof(enable_engineering_mode));
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    //Disable engineering mode
+    ld2410_send(disable_engineering_mode, sizeof(disable_engineering_mode));
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    //Check response after executing configuration comand
+    int len = ld2410_read(rx, sizeof(rx));
+
+    if (len > 0) {
+        ESP_LOGI(TAG, "Received %d bytes", len);
+
+        for (int i = 0; i < len; i++) {
+            printf("%02X ", rx[i]);
+        }
+        printf("\n");
+    }
+
+    //Exit config mode
+    ld2410_send(exit_config, sizeof(exit_config));
+    vTaskDelay(pdMS_TO_TICKS(200));
+}
+
+////////##End of configuration section for LD2410C sensor##////////
+
+...
+...
+...
+
+void app_main(void)
+{
+    ...
+    ...
+    ld2410_start_config();
+    ...
+    ...
+}
+
+```
