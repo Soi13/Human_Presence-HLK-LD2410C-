@@ -80,6 +80,7 @@ static void wifi_init(void)
     esp_wifi_start();
 }
 
+//Initializing MQTT
 static esp_mqtt_client_handle_t client = NULL;
 
 static void mqtt_app(void)
@@ -94,6 +95,7 @@ static void mqtt_app(void)
     esp_mqtt_client_start(client);
 }
 
+//UART initializing
 void uart_init_ld2410()
 {
     uart_config_t uart_config = {
@@ -109,7 +111,7 @@ void uart_init_ld2410()
     ESP_ERROR_CHECK(uart_set_pin(UART_PORT, TX, RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 }
 
-
+//This method pasre raw response from LD2410C
 void parse_ld2410(uint8_t *data, int len)
 {
     char moving_dist[6], static_dist[6];
