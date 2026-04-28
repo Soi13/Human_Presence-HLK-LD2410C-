@@ -8,11 +8,11 @@
 #include "driver/gpio.h"
 #include "mqtt_client.h"
 
-#define UART_PORT UART_NUM_2
-#define RX 16
-#define TX 17
+#define UART_PORT UART_NUM_1
+#define RX 20
+#define TX 21
 #define BUF_SIZE 256
-#define OUT_PIN GPIO_NUM_4
+#define OUT_PIN GPIO_NUM_10
 
 #define WIFI_SSID "Soi13"
 #define WIFI_PASS ""
@@ -43,7 +43,8 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        ESP_LOGW(TAG, "Wi-Fi disconnected, retrying...");
+        wifi_event_sta_disconnected_t *event = (wifi_event_sta_disconnected_t *)event_data;
+        ESP_LOGW(TAG, "Wi-Fi disconnected, retrying to reconnect. The reason is %d ", event->reason);
         esp_wifi_connect();
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
@@ -77,7 +78,8 @@ static void wifi_init(void)
 
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
-    esp_wifi_start();
+    ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(40)); //This method specifically for ESP32-C3, otherwise it will not connect to WiFi.
 }
 
 //Initializing MQTT
