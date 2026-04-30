@@ -130,14 +130,14 @@ void parse_ld2410(uint8_t *data, int len)
 
             if (target_status == 0x03) {
                 snprintf(moving_dist, sizeof(moving_dist), "%u", moving_distance);
-                ESP_LOGI(TAG, "Moving target detected. Distance cm: %d", moving_distance);
+                //ESP_LOGI(TAG, "Moving target detected. Distance cm: %d", moving_distance);
                 esp_mqtt_client_publish(client, PRESENCE_TYPE_MOVING, moving_dist, 0, 1, 0);
             } else if (target_status == 0x02) {
                 snprintf(static_dist, sizeof(static_dist), "%u", static_distance);
-                ESP_LOGI(TAG, "Static target detected. Distance cm: %d", static_distance);
+                //ESP_LOGI(TAG, "Static target detected. Distance cm: %d", static_distance);
                 esp_mqtt_client_publish(client, PRESENCE_TYPE_STATIC, static_dist, 0, 1, 0);
             } else {
-                ESP_LOGW(TAG, "No target");
+                //ESP_LOGW(TAG, "No target");
                 esp_mqtt_client_publish(client, PRESENCE_TYPE_MOVING, "0", 0, 1, 0);
                 esp_mqtt_client_publish(client, PRESENCE_TYPE_STATIC, "0", 0, 1, 0);
             }
@@ -158,10 +158,10 @@ void ld2410_task(void *arg)
         }
 
         if (state) {
-            printf("Presence detected\n");
+            //printf("Presence detected\n");
             esp_mqtt_client_publish(client, PRESENCE, "Presence detected", 0, 1, 0);
         } else {
-            printf("No presence\n");
+            //printf("No presence\n");
             esp_mqtt_client_publish(client, PRESENCE, "No presence", 0, 1, 0);
         }
     }
